@@ -7,8 +7,8 @@ import { EnvItem } from "./EnvItem.tsx";
 import { sortByEnvUpdateTime } from "../utils/sortByEnvUpdateTime.ts";
 
 export const AssetDeletionSidebar = ({
-  ctx,
-}: {
+                                       ctx
+                                     }: {
   ctx: RenderUploadSidebarPanelCtx;
 }) => {
   const {
@@ -18,8 +18,8 @@ export const AssetDeletionSidebar = ({
     environment: currentEnv,
     site: {
       id: siteId,
-      attributes: { internal_domain },
-    },
+      attributes: { internal_domain }
+    }
   } = ctx;
 
   // TODO add permissions checks
@@ -78,21 +78,21 @@ export const AssetDeletionSidebar = ({
           }
         ],
         "negative_build_trigger_permissions": []
-  
+
      */
 
-  const [allEnvsInProject, setAllEnvsInProject] =
+  const [allOtherEnvsInProject, setAllOtherEnvsInProject] =
     useState<EnvironmentInstancesTargetSchema>([]);
   const [envsWithUpload, setEnvsWithUpload] =
     useState<EnvironmentInstancesTargetSchema>([]);
-  const [loadingMessage, setLoadingMessage] = useState<string>();
+  const [loadingMessage, setLoadingMessage] = useState<string | null>("Loading...");
 
   // Build the client once per token.
   const client = useMemo(() => {
     if (!currentUserAccessToken) return null;
     return buildClient({
       apiToken: currentUserAccessToken,
-      logLevel: LogLevel.BASIC,
+      logLevel: LogLevel.BASIC
     });
   }, [currentUserAccessToken]);
 
@@ -101,28 +101,30 @@ export const AssetDeletionSidebar = ({
 
     (async () => {
       const discoveredEnvs = await client.environments.list();
-      setAllEnvsInProject(discoveredEnvs);
+      const otherEnvs = discoveredEnvs.filter(env => env.id !== currentEnv);
+      setAllOtherEnvsInProject(otherEnvs);
     })();
   }, [client]);
 
   useEffect(() => {
     if (
       !currentUserAccessToken ||
-      !allEnvsInProject ||
-      !allEnvsInProject.length
+      !allOtherEnvsInProject ||
+      !allOtherEnvsInProject.length
     ) {
       return;
     }
 
     (async () => {
       setLoadingMessage(
-        `Checking ${allEnvsInProject.length} environment(s) for this asset...`,
+        `Checking ${allOtherEnvsInProject.length} environment(s) for this asset...`
       );
       let envsWithUpload: EnvironmentInstancesTargetSchema = [];
-      const lookups = allEnvsInProject.map(async (env) => {
+      const lookups = allOtherEnvsInProject.map(async (env) => {
+
         const client = buildClient({
           apiToken: currentUserAccessToken,
-          environment: env.id,
+          environment: env.id
         });
 
         try {
@@ -131,20 +133,20 @@ export const AssetDeletionSidebar = ({
             envsWithUpload.push(env);
           }
         } catch (e) {
-          if (
-            e instanceof ApiError
-
-          ) {
-            if(e.errors[0].attributes.code === "NOT_FOUND") {
+          if (e instanceof ApiError) {
+            if (e.errors[0].attributes.code === "NOT_FOUND") {
               // Do nothing; that env just doesn't have this image (expected behavior)
               return;
-            }
-            else {
-              await ctx.alert(`Error: ${JSON.stringify(e.errors[0].attributes.details)}`);
+            } else {
+              await ctx.alert(
+                `Error: ${JSON.stringify(e.errors[0].attributes.details)}`
+              );
               return;
             }
           } else {
-            await ctx.alert(`Unhandled error. Please contact support@datocms.com for help.`)
+            await ctx.alert(
+              `Unhandled error. Please contact support@datocms.com for help.`
+            );
             //@ts-expect-error The cause should be valid
             throw new Error("Unhandled error", { cause: e });
           }
@@ -153,36 +155,70 @@ export const AssetDeletionSidebar = ({
 
       await Promise.all(lookups);
       setEnvsWithUpload(envsWithUpload.sort(sortByEnvUpdateTime));
-      setLoadingMessage(undefined);
+      setLoadingMessage(null);
     })();
-  }, [allEnvsInProject, currentUserAccessToken, uploadId]);
+  }, [allOtherEnvsInProject, currentUserAccessToken, uploadId]);
+
+  // TODO permissions
+  // Exit early if missing permissions
+  if (!currentUserAccessToken || !currentRole) {
+    return (
+      <Canvas ctx={ctx}>
+        <p>You do not have the right permissions to run this plugin. Please check with your admin.</p>
+      </Canvas>
+    );
+  }
 
   const deleteFromAllEnvs = async () => {
-    const confirm = await ctx.openConfirm({
-      title: `Delete ${envsWithUpload.length} copies?`,
-      content: `Are you sure? This is irreversible. Please make sure you have offline backups of this asset.`,
+    const confirm = (await ctx.openConfirm({
+      title: `Delete ${envsWithUpload.length} other copies?`,
+      content: `Are you sure? This will delete the asset from ${envsWithUpload.length} other environments. Then you'll still have to manually delete this last copy in the current environment.`,
       choices: [
         {
           label: "Delete all",
           value: "deleteAll",
-          intent: "negative",
-        },
+          intent: "negative"
+        }
       ],
-      cancel: { label: "Go back", value: "cancel" },
-    }) as unknown as 'deleteAll' | 'cancel';
+      cancel: { label: "Go back", value: "cancel" }
+    })) as unknown as "deleteAll" | "cancel";
 
-    if(confirm === 'deleteAll') {
-      await ctx.alert('Deleting...');
+    if (confirm === "deleteAll") {
+      setLoadingMessage(
+        `Deleting from ${envsWithUpload.length} environments...`
+      );
+
+      let copiesDeleted: number = 0;
+
+      for (const env of envsWithUpload) {
+        try {
+          const client = buildClient({ apiToken: currentUserAccessToken, environment: env.id });
+          const deletionAttempt = await client.uploads.destroy(uploadId);
+          if (deletionAttempt) {
+            copiesDeleted++;
+          }
+        } catch (e) {
+          if (e instanceof ApiError) {
+            await ctx.alert(
+              `Error: ${JSON.stringify(e.errors[0].attributes.details)}`
+            );
+            return;
+          } else {
+            await ctx.alert(
+              `Unhandled error. Please contact support@datocms.com for help.`
+            );
+            //@ts-expect-error The cause should be valid
+            throw new Error("Unhandled error", { cause: e });
+          }
+        }
+      }
+
+      ctx.notice(`Deleted ${copiesDeleted} other copies. You must delete the last copy in the current environment manually.`);
+      window.location.href = "/";
+      setLoadingMessage(null);
     }
   };
 
-  if (!currentUserAccessToken || !currentRole) {
-    return (
-      <Canvas ctx={ctx}>
-        <p>You do not have blah blah</p>
-      </Canvas>
-    );
-  }
 
   if (loadingMessage?.length) {
     return (
@@ -196,9 +232,26 @@ export const AssetDeletionSidebar = ({
     );
   }
 
-  else {return (
+  if (envsWithUpload.length === 0) {
+    return (
+      <Canvas ctx={ctx}>
+        <p>This is the last remaining copy of this asset. <strong>You must delete it manually using the regular "Delete" link at
+          the top of this sidebar.</strong></p>
+        <p>This is a safety measure, sorry!</p>
+        <p><strong>Once you delete this final copy, the asset should disappear from our CDN (datocms-assets.com) within
+          24 hours.</strong></p>
+
+      </Canvas>
+    );
+  }
+
+
+
+  return (
     <Canvas ctx={ctx}>
-      <p>Asset found in {envsWithUpload.length} out of {allEnvsInProject.length} environment(s):</p>
+      <p>
+        Asset found in {envsWithUpload.length} other environment(s):
+      </p>
       <ol>
         {envsWithUpload.map((env) => (
           <EnvItem
@@ -210,7 +263,9 @@ export const AssetDeletionSidebar = ({
           />
         ))}
       </ol>
-      <Button onClick={deleteFromAllEnvs}>Delete this asset from all {envsWithUpload.length} env(s)</Button>
+      <Button onClick={deleteFromAllEnvs}>
+        Delete this asset from {envsWithUpload.length} other env(s)
+      </Button>
     </Canvas>
-  )}
+  );
 };

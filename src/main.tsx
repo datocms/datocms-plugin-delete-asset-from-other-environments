@@ -7,8 +7,8 @@ connect({
   uploadSidebarPanels() {
     return [
       {
-        id: "deleteFromAllEnvs",
-        label: "Delete from all environments",
+        id: "deleteFromOtherEnvs",
+        label: "Delete from other environments",
       },
     ];
   },

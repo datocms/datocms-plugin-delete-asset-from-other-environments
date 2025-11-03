@@ -1,5 +1,5 @@
 {
-  "name": "datocms-plugin-delete-asset-from-all-environments",
+  "name": "datocms-plugin-delete-asset-from-other-environments",
   "description": "This plugin will look for copies of an asset across all your environments and delete them in each one. This will ensure that the asset is deleted from our systems altogether, and after 24 hours, it will also be invalidated on the CDN.",
   "homepage": "https://github.com/<USER>/<REPO>",
   "private": false,
@@ -10,7 +10,7 @@
     "datocms-plugin"
   ],
   "datoCmsPlugin": {
-    "title": "Delete Asset From All Environments",
+    "title": "Delete Asset From Other Environments",
     "coverImage": "docs/cover-1200x800.png",
     "previewImage": "docs/preview.mp4",
     "entryPoint": "dist/index.html",
