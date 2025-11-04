@@ -7,8 +7,8 @@ import { EnvItem } from "./EnvItem.tsx";
 import { sortByEnvUpdateTime } from "../utils/sortByEnvUpdateTime.ts";
 
 export const AssetDeletionSidebar = ({
-                                       ctx
-                                     }: {
+  ctx,
+}: {
   ctx: RenderUploadSidebarPanelCtx;
 }) => {
   const {
@@ -18,8 +18,8 @@ export const AssetDeletionSidebar = ({
     environment: currentEnv,
     site: {
       id: siteId,
-      attributes: { internal_domain }
-    }
+      attributes: { internal_domain },
+    },
   } = ctx;
 
   // TODO add permissions checks
@@ -85,14 +85,16 @@ export const AssetDeletionSidebar = ({
     useState<EnvironmentInstancesTargetSchema>([]);
   const [envsWithUpload, setEnvsWithUpload] =
     useState<EnvironmentInstancesTargetSchema>([]);
-  const [loadingMessage, setLoadingMessage] = useState<string | null>("Loading...");
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(
+    "Loading...",
+  );
 
   // Build the client once per token.
   const client = useMemo(() => {
     if (!currentUserAccessToken) return null;
     return buildClient({
       apiToken: currentUserAccessToken,
-      logLevel: LogLevel.BASIC
+      logLevel: LogLevel.BASIC,
     });
   }, [currentUserAccessToken]);
 
@@ -101,7 +103,7 @@ export const AssetDeletionSidebar = ({
 
     (async () => {
       const discoveredEnvs = await client.environments.list();
-      const otherEnvs = discoveredEnvs.filter(env => env.id !== currentEnv);
+      const otherEnvs = discoveredEnvs.filter((env) => env.id !== currentEnv);
       setAllOtherEnvsInProject(otherEnvs);
     })();
   }, [client]);
@@ -117,14 +119,13 @@ export const AssetDeletionSidebar = ({
 
     (async () => {
       setLoadingMessage(
-        `Checking ${allOtherEnvsInProject.length} environment(s) for this asset...`
+        `Checking ${allOtherEnvsInProject.length} environment(s) for this asset...`,
       );
       let envsWithUpload: EnvironmentInstancesTargetSchema = [];
       const lookups = allOtherEnvsInProject.map(async (env) => {
-
         const client = buildClient({
           apiToken: currentUserAccessToken,
-          environment: env.id
+          environment: env.id,
         });
 
         try {
@@ -139,13 +140,13 @@ export const AssetDeletionSidebar = ({
               return;
             } else {
               await ctx.alert(
-                `Error: ${JSON.stringify(e.errors[0].attributes.details)}`
+                `Error: ${JSON.stringify(e.errors[0].attributes.details)}`,
               );
               return;
             }
           } else {
             await ctx.alert(
-              `Unhandled error. Please contact support@datocms.com for help.`
+              `Unhandled error. Please contact support@datocms.com for help.`,
             );
             //@ts-expect-error The cause should be valid
             throw new Error("Unhandled error", { cause: e });
@@ -161,10 +162,13 @@ export const AssetDeletionSidebar = ({
 
   // TODO permissions
   // Exit early if missing permissions
-  if (!currentUserAccessToken || !currentRole) {
+  if (!currentUserAccessToken || !currentRole || currentRole?.attributes.environments_access !== 'all') {
     return (
       <Canvas ctx={ctx}>
-        <p>You do not have the right permissions to run this plugin. Please check with your admin.</p>
+        <p>
+          You do not have the right permissions to run this plugin. Please check
+          with your admin.
+        </p>
       </Canvas>
     );
   }
@@ -177,22 +181,25 @@ export const AssetDeletionSidebar = ({
         {
           label: "Delete all",
           value: "deleteAll",
-          intent: "negative"
-        }
+          intent: "negative",
+        },
       ],
-      cancel: { label: "Go back", value: "cancel" }
+      cancel: { label: "Go back", value: "cancel" },
     })) as unknown as "deleteAll" | "cancel";
 
     if (confirm === "deleteAll") {
       setLoadingMessage(
-        `Deleting from ${envsWithUpload.length} environments...`
+        `Deleting from ${envsWithUpload.length} environments...`,
       );
 
       let copiesDeleted: number = 0;
 
       for (const env of envsWithUpload) {
         try {
-          const client = buildClient({ apiToken: currentUserAccessToken, environment: env.id });
+          const client = buildClient({
+            apiToken: currentUserAccessToken,
+            environment: env.id,
+          });
           const deletionAttempt = await client.uploads.destroy(uploadId);
           if (deletionAttempt) {
             copiesDeleted++;
@@ -200,12 +207,12 @@ export const AssetDeletionSidebar = ({
         } catch (e) {
           if (e instanceof ApiError) {
             await ctx.alert(
-              `Error: ${JSON.stringify(e.errors[0].attributes.details)}`
+              `Error: ${JSON.stringify(e.errors[0].attributes.details)}`,
             );
             return;
           } else {
             await ctx.alert(
-              `Unhandled error. Please contact support@datocms.com for help.`
+              `Unhandled error. Please contact support@datocms.com for help.`,
             );
             //@ts-expect-error The cause should be valid
             throw new Error("Unhandled error", { cause: e });
@@ -213,12 +220,13 @@ export const AssetDeletionSidebar = ({
         }
       }
 
-      ctx.notice(`Deleted ${copiesDeleted} other copies. You must delete the last copy in the current environment manually.`);
+      ctx.notice(
+        `Deleted ${copiesDeleted} other copies. You must delete the last copy in the current environment manually.`,
+      );
       window.location.href = "/";
       setLoadingMessage(null);
     }
   };
-
 
   if (loadingMessage?.length) {
     return (
@@ -235,23 +243,27 @@ export const AssetDeletionSidebar = ({
   if (envsWithUpload.length === 0) {
     return (
       <Canvas ctx={ctx}>
-        <p>This is the last remaining copy of this asset. <strong>You must delete it manually using the regular "Delete" link at
-          the top of this sidebar.</strong></p>
+        <p>
+          This is the last remaining copy of this asset.{" "}
+          <strong>
+            You must delete it manually using the regular "Delete" link at the
+            top of this sidebar.
+          </strong>
+        </p>
         <p>This is a safety measure, sorry!</p>
-        <p><strong>Once you delete this final copy, the asset should disappear from our CDN (datocms-assets.com) within
-          24 hours.</strong></p>
-
+        <p>
+          <strong>
+            Once you delete this final copy, the asset should disappear from our
+            CDN (datocms-assets.com) within 24 hours.
+          </strong>
+        </p>
       </Canvas>
     );
   }
 
-
-
   return (
     <Canvas ctx={ctx}>
-      <p>
-        Asset found in {envsWithUpload.length} other environment(s):
-      </p>
+      <p>Asset found in {envsWithUpload.length} other environment(s):</p>
       <ol>
         {envsWithUpload.map((env) => (
           <EnvItem
