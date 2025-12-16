@@ -1,9 +1,10 @@
 {
   "name": "datocms-plugin-delete-asset-from-other-environments",
-  "description": "This plugin will look for copies of an asset across all your environments and delete them in each one. This will ensure that the asset is deleted from our systems altogether, and after 24 hours, it will also be invalidated on the CDN.",
+  "description": "This is a SPECIAL-PURPOSE plugin used only to help with CDN cache invalidation of unused assets. It will not help you save disk space or bandwidth. You should only use this if directed to by DatoCMS Support, or if you know you need to completely evict an asset from our CDN cache by ensuring all its copies are gone. If you don't know what this means, you probably don't need this plugin. It is NOT a general-use plugin for cleaning up assets.",
+
   "homepage": "https://github.com/arcataroger/datocms-plugin-delete-asset-from-other-environments",
   "private": false,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Roger Tuan (DatoCMS) <r.tuan@datocms.com>",
   "type": "module",
   "keywords": [
